@@ -242,7 +242,7 @@
   <div class="table-wrap">
     <table>
       <thead>
-        <tr><th>Timestamp</th><th>Event</th><th>Duration</th></tr>
+        <tr><th>Timestamp</th><th>Event</th><th>Duration <span style="color:var(--text-dim); font-weight:400; text-transform:none;">(<span style="color:var(--amber);">calc</span> = derived from timestamps, not device-reported)</span></th></tr>
       </thead>
       <tbody id="logBody">
         <tr><td colspan="3" class="empty">Loading…</td></tr>
@@ -333,6 +333,35 @@
         return;
       }
 
+      // Fill in missing durations by computing the gap between a POWER_RESTORED
+      // event and the OUTAGE_START that preceded it, whenever the device didn't
+      // report a duration itself. Flagged as "estimated" so it's clear in the
+      // table which numbers came from the device vs. were derived here.
+      let pendingStartTime = null;
+      events.forEach(e => {
+        const reportedSec = parseDurationToSeconds(e.duration);
+        if(isStartEvent(e.event)){
+          pendingStartTime = e.timestamp;
+          e.durationSec = 0;
+          e.durationEstimated = false;
+        } else if(isEndEvent(e.event)){
+          if(reportedSec > 0){
+            e.durationSec = reportedSec;
+            e.durationEstimated = false;
+          } else if(pendingStartTime){
+            e.durationSec = Math.max(0, Math.round((new Date(e.timestamp) - new Date(pendingStartTime)) / 1000));
+            e.durationEstimated = true;
+          } else {
+            e.durationSec = 0;
+            e.durationEstimated = false;
+          }
+          pendingStartTime = null;
+        } else {
+          e.durationSec = reportedSec;
+          e.durationEstimated = false;
+        }
+      });
+
       renderStats(events);
       renderPulseStrip(events);
       renderTable(events);
@@ -359,7 +388,7 @@
 
     let totalDowntime = 0, longest = 0;
     ends.forEach(e => {
-      const s = parseDurationToSeconds(e.duration);
+      const s = e.durationSec || 0;
       totalDowntime += s;
       if(s > longest) longest = s;
     });
@@ -398,7 +427,7 @@
       events.forEach(e => {
         if(isEndEvent(e.event)){
           const t = new Date(e.timestamp);
-          if(t >= d && t < dayEnd) downtime += parseDurationToSeconds(e.duration);
+          if(t >= d && t < dayEnd) downtime += (e.durationSec || 0);
         }
       });
       return downtime;
@@ -435,10 +464,17 @@
     const reversed = [...events].reverse().slice(0, 100); // most recent first, capped
     logBody.innerHTML = reversed.map(e => {
       const tagClass = isStartEvent(e.event) ? "start" : "end";
+      let durationCell = "—";
+      if(isEndEvent(e.event) && e.durationSec > 0){
+        durationCell = fmtDuration(e.durationSec);
+        if(e.durationEstimated){
+          durationCell += ' <span style="color:var(--amber);" title="Device did not report a duration — calculated from the gap between OUTAGE_START and this event\'s timestamps.">(calc)</span>';
+        }
+      }
       return `<tr>
         <td>${new Date(e.timestamp).toLocaleString()}</td>
         <td><span class="tag ${tagClass}">${e.event}</span></td>
-        <td>${e.duration || "—"}</td>
+        <td>${durationCell}</td>
       </tr>`;
     }).join("");
   }
