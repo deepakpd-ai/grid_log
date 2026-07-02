@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grid Log — Power Outage Monitor</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+  :root{
+    --bg: #0B0F10;
+    --panel: #12181A;
+    --panel-line: #1F2A2C;
+    --text: #E8ECEC;
+    --text-dim: #8A9A9C;
+    --online: #35D07F;
+    --outage: #FF6B4A;
+    --outage-dim: #7A3A2C;
+    --amber: #E8B84B;
+  }
+
+  * { box-sizing: border-box; }
+
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter', system-ui, sans-serif;
+    min-height:100vh;
+  }
+
+  .wrap{ max-width:960px; margin:0 auto; padding:40px 24px 80px; }
+
+  header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    border-bottom:1px solid var(--panel-line);
+    padding-bottom:24px;
+    margin-bottom:32px;
+    flex-wrap:wrap;
+    gap:16px;
+  }
+
+  .title-block h1{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:28px;
+    font-weight:700;
+    margin:0 0 4px;
+    letter-spacing:-0.5px;
+  }
+  .title-block .sub{
+    color:var(--text-dim);
+    font-size:13px;
+    font-family:'IBM Plex Mono', monospace;
+  }
+
+  .status-pill{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    font-weight:600;
+    padding:8px 14px;
+    border-radius:20px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    border:1px solid var(--panel-line);
+  }
+  .status-pill.online{ color:var(--online); }
+  .status-pill.outage{ color:var(--outage); }
+  .dot{ width:8px; height:8px; border-radius:50%; background:currentColor; box-shadow:0 0 8px currentColor; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .dot.live{ animation: pulse 2s ease-in-out infinite; }
+
+  .stats{
+    display:grid;
+    grid-template-columns:repeat(4, 1fr);
+    gap:1px;
+    background:var(--panel-line);
+    border:1px solid var(--panel-line);
+    border-radius:10px;
+    overflow:hidden;
+    margin-bottom:32px;
+  }
+  .stat{ background:var(--panel); padding:20px 18px; }
+  .stat .label{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:8px; }
+  .stat .value{ font-family:'IBM Plex Mono', monospace; font-size:26px; font-weight:600; }
+  .stat .value.outage-color{ color:var(--outage); }
+  .stat .value.online-color{ color:var(--online); }
+
+  .section-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    color:var(--text-dim);
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    margin-bottom:12px;
+  }
+
+  .pulse-strip{
+    background:var(--panel);
+    border:1px solid var(--panel-line);
+    border-radius:10px;
+    padding:20px;
+    margin-bottom:32px;
+  }
+  .pulse-row{ display:flex; gap:3px; height:36px; align-items:stretch; }
+  .pulse-seg{
+    flex:1;
+    border-radius:3px;
+    position:relative;
+    cursor:default;
+  }
+  .pulse-labels{ display:flex; gap:3px; margin-top:6px; }
+  .pulse-labels span{
+    flex:1;
+    text-align:center;
+    font-size:9px;
+    font-family:'IBM Plex Mono', monospace;
+    color:var(--text-dim);
+  }
+  .pulse-seg:hover::after{
+    content: attr(data-tip);
+    position:absolute;
+    bottom:44px;
+    left:50%;
+    transform:translateX(-50%);
+    background:#1C2426;
+    border:1px solid var(--panel-line);
+    padding:6px 10px;
+    border-radius:6px;
+    font-size:11px;
+    font-family:'IBM Plex Mono', monospace;
+    white-space:nowrap;
+    z-index:10;
+  }
+
+  table{ width:100%; border-collapse:collapse; }
+  .table-wrap{
+    background:var(--panel);
+    border:1px solid var(--panel-line);
+    border-radius:10px;
+    overflow:hidden;
+  }
+  th{
+    text-align:left;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    color:var(--text-dim);
+    padding:14px 18px;
+    border-bottom:1px solid var(--panel-line);
+    font-weight:500;
+  }
+  td{
+    padding:13px 18px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13px;
+    border-bottom:1px solid var(--panel-line);
+  }
+  tr:last-child td{ border-bottom:none; }
+  .tag{
+    display:inline-block;
+    padding:3px 9px;
+    border-radius:5px;
+    font-size:11px;
+    font-weight:600;
+  }
+  .tag.start{ background:rgba(255,107,74,0.15); color:var(--outage); }
+  .tag.end{ background:rgba(53,208,127,0.15); color:var(--online); }
+
+  footer{
+    margin-top:24px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    color:var(--text-dim);
+    font-size:12px;
+    font-family:'IBM Plex Mono', monospace;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  button{
+    background:var(--panel);
+    border:1px solid var(--panel-line);
+    color:var(--text);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    padding:8px 14px;
+    border-radius:6px;
+    cursor:pointer;
+  }
+  button:hover{ border-color:var(--text-dim); }
+  button:focus-visible, .pulse-seg:focus-visible { outline:2px solid var(--amber); outline-offset:2px; }
+
+  .empty{ padding:40px; text-align:center; color:var(--text-dim); font-family:'IBM Plex Mono', monospace; font-size:13px; }
+  .error{ color:var(--outage); }
+
+  @media (max-width: 600px){
+    .stats{ grid-template-columns:repeat(2,1fr); }
+    .pulse-labels span{ font-size:7px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="title-block">
+      <h1>GRID LOG</h1>
+      <div class="sub">Mains power monitor — auto-synced from field logger</div>
+    </div>
+    <div id="statusPill" class="status-pill online"><span class="dot live"></span>CHECKING…</div>
+  </header>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="label">Outages (7d)</div>
+      <div class="value" id="stat7d">—</div>
+    </div>
+    <div class="stat">
+      <div class="label">Downtime (7d)</div>
+      <div class="value outage-color" id="statDowntime">—</div>
+    </div>
+    <div class="stat">
+      <div class="label">Longest outage</div>
+      <div class="value" id="statLongest">—</div>
+    </div>
+    <div class="stat">
+      <div class="label">Last event</div>
+      <div class="value" id="statLast" style="font-size:15px;">—</div>
+    </div>
+  </div>
+
+  <div class="section-label">Last 14 days</div>
+  <div class="pulse-strip">
+    <div class="pulse-row" id="pulseRow"></div>
+    <div class="pulse-labels" id="pulseLabels"></div>
+  </div>
+
+  <div class="section-label">Event log</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Timestamp</th><th>Event</th><th>Duration</th></tr>
+      </thead>
+      <tbody id="logBody">
+        <tr><td colspan="3" class="empty">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <footer>
+    <span id="lastUpdated">Not yet loaded</span>
+    <button id="refreshBtn">Refresh now</button>
+  </footer>
+
+</div>
+
+<script>
+  // ── CONFIG ──────────────────────────────────────────────────────────
+  // Paste your Apps Script Web App URL below (same one your logger already posts to).
+  const WEBAPP_URL = "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
+  const REFRESH_MS = 6 * 60 * 60 * 1000; // 6 hours
+  // ────────────────────────────────────────────────────────────────────
+
+  function parseDurationToSeconds(str){
+    if(!str) return 0;
+    const s = String(str).toLowerCase();
+    const num = parseFloat(s.replace(/[^\d.]/g, "")) || 0;
+    if(s.includes("hr") || s.includes("hour")) return num * 3600;
+    if(s.includes("min")) return num * 60;
+    return num; // default: seconds
+  }
+
+  function fmtDuration(totalSeconds){
+    if(totalSeconds < 60) return Math.round(totalSeconds) + "s";
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.round((totalSeconds % 3600) / 60);
+    if(h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  }
+
+  function isStartEvent(ev){
+    return /start|lost|down|offline/i.test(ev || "");
+  }
+  function isEndEvent(ev){
+    return /restor|end|up|online/i.test(ev || "");
+  }
+
+  async function loadData(){
+    const pill = document.getElementById("statusPill");
+    const logBody = document.getElementById("logBody");
+    try {
+      const res = await fetch(WEBAPP_URL + "?action=read", { cache: "no-store" });
+      if(!res.ok) throw new Error("HTTP " + res.status);
+      const rows = await res.json();
+
+      if(!Array.isArray(rows) || rows.length === 0){
+        logBody.innerHTML = '<tr><td colspan="3" class="empty">No events logged yet.</td></tr>';
+        document.getElementById("statusPill").className = "status-pill online";
+        document.getElementById("statusPill").innerHTML = '<span class="dot live"></span>NO DATA';
+        return;
+      }
+
+      // Normalize + sort chronologically (assume "Timestamp" key from your sheet header)
+      const events = rows.map(r => ({
+        timestamp: r.Timestamp || r.timestamp,
+        event: r.Event || r.event || "",
+        duration: r.Duration || r.duration || ""
+      })).filter(r => r.timestamp)
+        .sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+      renderStats(events);
+      renderPulseStrip(events);
+      renderTable(events);
+
+      document.getElementById("lastUpdated").textContent =
+        "Last synced " + new Date().toLocaleString();
+
+    } catch(err){
+      pill.className = "status-pill outage";
+      pill.innerHTML = '<span class="dot"></span>SYNC ERROR';
+      logBody.innerHTML = `<tr><td colspan="3" class="empty error">Couldn't load data: ${err.message}. Check the Web App URL and that the sheet's deployment is live.</td></tr>`;
+      document.getElementById("lastUpdated").textContent =
+        "Last attempt failed at " + new Date().toLocaleString();
+    }
+  }
+
+  function renderStats(events){
+    const now = new Date();
+    const weekAgo = new Date(now - 7*24*60*60*1000);
+
+    const recent = events.filter(e => new Date(e.timestamp) >= weekAgo);
+    const starts = recent.filter(e => isStartEvent(e.event));
+    const ends = recent.filter(e => isEndEvent(e.event));
+
+    let totalDowntime = 0, longest = 0;
+    ends.forEach(e => {
+      const s = parseDurationToSeconds(e.duration);
+      totalDowntime += s;
+      if(s > longest) longest = s;
+    });
+
+    document.getElementById("stat7d").textContent = starts.length;
+    document.getElementById("statDowntime").textContent = totalDowntime > 0 ? fmtDuration(totalDowntime) : "0m";
+    document.getElementById("statLongest").textContent = longest > 0 ? fmtDuration(longest) : "—";
+
+    const last = events[events.length - 1];
+    const lastIsOutage = isStartEvent(last.event);
+    document.getElementById("statLast").textContent =
+      new Date(last.timestamp).toLocaleString(undefined, {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+
+    const pill = document.getElementById("statusPill");
+    if(lastIsOutage){
+      pill.className = "status-pill outage";
+      pill.innerHTML = '<span class="dot live"></span>MAINS DOWN';
+    } else {
+      pill.className = "status-pill online";
+      pill.innerHTML = '<span class="dot live"></span>MAINS UP';
+    }
+  }
+
+  function renderPulseStrip(events){
+    const days = [];
+    for(let i = 13; i >= 0; i--){
+      const d = new Date();
+      d.setHours(0,0,0,0);
+      d.setDate(d.getDate() - i);
+      days.push(d);
+    }
+
+    const dayDowntime = days.map(d => {
+      const dayEnd = new Date(d); dayEnd.setDate(dayEnd.getDate() + 1);
+      let downtime = 0;
+      events.forEach(e => {
+        if(isEndEvent(e.event)){
+          const t = new Date(e.timestamp);
+          if(t >= d && t < dayEnd) downtime += parseDurationToSeconds(e.duration);
+        }
+      });
+      return downtime;
+    });
+
+    const maxDowntime = Math.max(...dayDowntime, 1);
+    const row = document.getElementById("pulseRow");
+    const labels = document.getElementById("pulseLabels");
+    row.innerHTML = "";
+    labels.innerHTML = "";
+
+    days.forEach((d, i) => {
+      const downtime = dayDowntime[i];
+      const seg = document.createElement("div");
+      seg.className = "pulse-seg";
+      seg.tabIndex = 0;
+      if(downtime === 0){
+        seg.style.background = "rgba(53,208,127,0.35)";
+      } else {
+        const intensity = Math.min(downtime / maxDowntime, 1);
+        seg.style.background = `rgba(255,107,74,${0.25 + intensity * 0.65})`;
+      }
+      seg.setAttribute("data-tip", `${d.toLocaleDateString(undefined,{month:'short',day:'numeric'})}: ${downtime > 0 ? fmtDuration(downtime) + ' down' : 'no outages'}`);
+      row.appendChild(seg);
+
+      const lbl = document.createElement("span");
+      lbl.textContent = d.toLocaleDateString(undefined, {day:'numeric'});
+      labels.appendChild(lbl);
+    });
+  }
+
+  function renderTable(events){
+    const logBody = document.getElementById("logBody");
+    const reversed = [...events].reverse().slice(0, 100); // most recent first, capped
+    logBody.innerHTML = reversed.map(e => {
+      const tagClass = isStartEvent(e.event) ? "start" : "end";
+      return `<tr>
+        <td>${new Date(e.timestamp).toLocaleString()}</td>
+        <td><span class="tag ${tagClass}">${e.event}</span></td>
+        <td>${e.duration || "—"}</td>
+      </tr>`;
+    }).join("");
+  }
+
+  document.getElementById("refreshBtn").addEventListener("click", loadData);
+  loadData();
+  setInterval(loadData, REFRESH_MS);
+</script>
+</body>
+</html>
