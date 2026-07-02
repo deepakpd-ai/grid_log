@@ -262,6 +262,7 @@
   // Paste your Apps Script Web App URL below (same one your logger already posts to).
   const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzMPc3HkQPdLlzW1wbBhWMRU15FgpP96yuBgHvOrfv3xCp_-N1WfMJdqRo5kcHBNM-1/exec";
   const REFRESH_MS = 6 * 60 * 60 * 1000; // 6 hours
+  const SOURCE_FILTER = /^ESP32/i; // only include rows whose Source/Device column starts with "ESP32" — excludes TuyaCloud-AICVPS rows
   // ────────────────────────────────────────────────────────────────────
 
   function parseDurationToSeconds(str){
@@ -303,13 +304,21 @@
         return;
       }
 
-      // Normalize + sort chronologically (assume "Timestamp" key from your sheet header)
+      // Normalize + filter to ESP32 rows only + sort chronologically
       const events = rows.map(r => ({
         timestamp: r.Timestamp || r.timestamp,
         event: r.Event || r.event || "",
-        duration: r.Duration || r.duration || ""
-      })).filter(r => r.timestamp)
+        duration: r.Duration || r.duration || "",
+        source: r.Source || r.source || r.Device || r.device || ""
+      })).filter(r => r.timestamp && SOURCE_FILTER.test(r.source))
         .sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+      if(events.length === 0){
+        logBody.innerHTML = '<tr><td colspan="3" class="empty">No ESP32 events found. Check the Source column values match SOURCE_FILTER in the config.</td></tr>';
+        pill.className = "status-pill online";
+        pill.innerHTML = '<span class="dot live"></span>NO DATA';
+        return;
+      }
 
       renderStats(events);
       renderPulseStrip(events);
