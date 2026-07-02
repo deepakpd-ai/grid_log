@@ -421,6 +421,11 @@
       days.push(d);
     }
 
+    // Earliest known event date — days before this had no ESP32 data at all,
+    // so they should read as "no data" rather than implying confirmed uptime.
+    const earliestEventDay = new Date(events[0].timestamp);
+    earliestEventDay.setHours(0,0,0,0);
+
     const dayDowntime = days.map(d => {
       const dayEnd = new Date(d); dayEnd.setDate(dayEnd.getDate() + 1);
       let downtime = 0;
@@ -441,16 +446,22 @@
 
     days.forEach((d, i) => {
       const downtime = dayDowntime[i];
+      const hasData = d >= earliestEventDay;
       const seg = document.createElement("div");
       seg.className = "pulse-seg";
       seg.tabIndex = 0;
-      if(downtime === 0){
+      if(!hasData){
+        seg.style.background = "rgba(138,154,156,0.15)"; // muted grey — no data
+      } else if(downtime === 0){
         seg.style.background = "rgba(53,208,127,0.35)";
       } else {
         const intensity = Math.min(downtime / maxDowntime, 1);
         seg.style.background = `rgba(255,107,74,${0.25 + intensity * 0.65})`;
       }
-      seg.setAttribute("data-tip", `${d.toLocaleDateString(undefined,{month:'short',day:'numeric'})}: ${downtime > 0 ? fmtDuration(downtime) + ' down' : 'no outages'}`);
+      const tip = !hasData
+        ? `${d.toLocaleDateString(undefined,{month:'short',day:'numeric'})}: no data`
+        : `${d.toLocaleDateString(undefined,{month:'short',day:'numeric'})}: ${downtime > 0 ? fmtDuration(downtime) + ' down' : 'no outages'}`;
+      seg.setAttribute("data-tip", tip);
       row.appendChild(seg);
 
       const lbl = document.createElement("span");
