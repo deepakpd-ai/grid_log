@@ -304,17 +304,30 @@
         return;
       }
 
+      // Debug aid: open browser console (F12) to see the exact column names
+      // your Apps Script is returning, if filtering ever looks wrong again.
+      console.log("Grid Log — raw columns from sheet:", Object.keys(rows[0]));
+
+      function getField(obj, candidates){
+        const keys = Object.keys(obj);
+        for(const cand of candidates){
+          const found = keys.find(k => k.trim().toLowerCase() === cand.toLowerCase());
+          if(found) return obj[found];
+        }
+        return "";
+      }
+
       // Normalize + filter to ESP32 rows only + sort chronologically
       const events = rows.map(r => ({
-        timestamp: r.Timestamp || r.timestamp,
-        event: r.Event || r.event || "",
-        duration: r.Duration || r.duration || "",
-        source: r.Source || r.source || r.Device || r.device || ""
-      })).filter(r => r.timestamp && SOURCE_FILTER.test(r.source))
+        timestamp: getField(r, ["Timestamp"]),
+        event: getField(r, ["Event"]),
+        duration: getField(r, ["Duration"]),
+        source: getField(r, ["Source", "Device", "Source/Device"])
+      })).filter(r => r.timestamp && SOURCE_FILTER.test(String(r.source).trim()))
         .sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
 
       if(events.length === 0){
-        logBody.innerHTML = '<tr><td colspan="3" class="empty">No ESP32 events found. Check the Source column values match SOURCE_FILTER in the config.</td></tr>';
+        logBody.innerHTML = '<tr><td colspan="3" class="empty">No ESP32 events found. Open the browser console (F12) — it logs the actual column names from your sheet so SOURCE_FILTER can be matched correctly.</td></tr>';
         pill.className = "status-pill online";
         pill.innerHTML = '<span class="dot live"></span>NO DATA';
         return;
