@@ -423,12 +423,12 @@
 
     // Earliest known event date — days before this had no ESP32 data at all,
     // so they should read as "no data" rather than implying confirmed uptime.
-    // Real continuous logging started today — treat anything before today as
-    // "no data" regardless of any old firmware-testing events sitting in the
-    // sheet from earlier. Simpler and more robust than trying to detect the
-    // true start of continuous monitoring from event history alone.
-    const todayStart = new Date();
-    todayStart.setHours(0,0,0,0);
+    // Real continuous logging started on this fixed date — anchor to it
+    // explicitly rather than recomputing "today" on every page load, since
+    // a moving cutoff would wrongly greynout past days with real data as
+    // time passes (e.g. today's outages would look like "no data" tomorrow).
+    const loggingStartDate = new Date(2026, 6, 2); // July 2, 2026 (month is 0-indexed)
+    loggingStartDate.setHours(0,0,0,0);
     console.log("Grid Log — earliest ESP32 event found:", events[0].timestamp, "| total ESP32 events:", events.length);
 
     const dayDowntime = days.map(d => {
@@ -451,7 +451,7 @@
 
     days.forEach((d, i) => {
       const downtime = dayDowntime[i];
-      const hasData = d >= todayStart;
+      const hasData = d >= loggingStartDate;
       const seg = document.createElement("div");
       seg.className = "pulse-seg";
       seg.tabIndex = 0;
