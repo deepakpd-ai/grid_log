@@ -107,7 +107,7 @@
     margin-bottom:24px;
   }
   @media(max-width:600px){ .power-stats{ grid-template-columns:1fr; } }
-  .trace-svg{ width:100%; height:80px; display:block; }
+  .trace-svg{ width:100%; height:96px; display:block; }
 
   .section-label{
     font-family:'IBM Plex Mono', monospace;
@@ -390,12 +390,12 @@
 
     <div class="summary-block">
       <h3>Voltage — last 20 readings</h3>
-      <svg class="trace-svg" id="voltageTrace" viewBox="0 0 600 80" preserveAspectRatio="none"></svg>
+      <svg class="trace-svg" id="voltageTrace" viewBox="0 0 660 100" preserveAspectRatio="none"></svg>
     </div>
 
     <div class="summary-block">
       <h3>Frequency — last 20 readings</h3>
-      <svg class="trace-svg" id="frequencyTrace" viewBox="0 0 600 80" preserveAspectRatio="none"></svg>
+      <svg class="trace-svg" id="frequencyTrace" viewBox="0 0 660 100" preserveAspectRatio="none"></svg>
     </div>
 
     <div id="powerStatusLine" style="font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--text-dim); text-align:center;">Loading&hellip;</div>
@@ -756,18 +756,61 @@
     return (value < low || value > high) ? 'outage-color' : 'online-color';
   }
 
-  function drawTrace(svgEl, values, low, high){
+  function drawTrace(svgEl, values, low, high, unit){
     svgEl.innerHTML = '';
     if(!values.length) return;
-    const min = Math.min(...values), max = Math.max(...values);
+    const dataMin = Math.min(...values), dataMax = Math.max(...values);
+    // Scale always includes the threshold band, not just observed data —
+    // otherwise small real fluctuations look artificially dramatic.
+    const scaleMin = Math.min(dataMin, low), scaleMax = Math.max(dataMax, high);
+    const pad = (scaleMax - scaleMin) * 0.12 || 1;
+    const min = scaleMin - pad, max = scaleMax + pad;
     const range = (max - min) || 1;
-    const padY = 8, h = 80 - padY*2, w = 600;
-    const step = values.length > 1 ? w / (values.length - 1) : 0;
-    const points = values.map((v,i) => {
-      const x = i*step, y = padY + h - ((v-min)/range)*h;
-      return x.toFixed(1) + ',' + y.toFixed(1);
-    }).join(' ');
+
+    const xStart = 46, xEnd = 620, w = xEnd - xStart;
+    const padY = 14, h = 100 - padY*2;
     const ns = 'http://www.w3.org/2000/svg';
+    const yFor = v => padY + h - ((v-min)/range)*h;
+    const xFor = i => xStart + (values.length>1 ? i*(w/(values.length-1)) : 0);
+
+    // Threshold reference lines
+    [high, low].forEach(t => {
+      const y = yFor(t);
+      const line = document.createElementNS(ns,'line');
+      line.setAttribute('x1', xStart); line.setAttribute('x2', xEnd);
+      line.setAttribute('y1', y.toFixed(1)); line.setAttribute('y2', y.toFixed(1));
+      line.setAttribute('stroke', 'var(--amber)');
+      line.setAttribute('stroke-width','1');
+      line.setAttribute('stroke-dasharray','4 3');
+      line.setAttribute('opacity','0.5');
+      svgEl.appendChild(line);
+
+      const txt = document.createElementNS(ns,'text');
+      txt.setAttribute('x', xEnd + 4);
+      txt.setAttribute('y', (y+3).toFixed(1));
+      txt.setAttribute('font-size','9');
+      txt.setAttribute('font-family',"'IBM Plex Mono', monospace");
+      txt.setAttribute('fill','var(--amber)');
+      txt.textContent = t + (unit||'');
+      svgEl.appendChild(txt);
+    });
+
+    // Y-axis scale markers (top/bottom of visible range)
+    [max, min].forEach(v => {
+      const y = yFor(v);
+      const txt = document.createElementNS(ns,'text');
+      txt.setAttribute('x', xStart - 6);
+      txt.setAttribute('y', (y+3).toFixed(1));
+      txt.setAttribute('text-anchor','end');
+      txt.setAttribute('font-size','9');
+      txt.setAttribute('font-family',"'IBM Plex Mono', monospace");
+      txt.setAttribute('fill','var(--text-dim)');
+      txt.textContent = v.toFixed(0);
+      svgEl.appendChild(txt);
+    });
+
+    // Trace line
+    const points = values.map((v,i)=> xFor(i).toFixed(1)+','+yFor(v).toFixed(1)).join(' ');
     const line = document.createElementNS(ns, 'polyline');
     line.setAttribute('points', points);
     line.setAttribute('fill', 'none');
@@ -776,11 +819,12 @@
     line.setAttribute('stroke-linejoin', 'round');
     line.setAttribute('stroke-linecap', 'round');
     svgEl.appendChild(line);
+
+    // Last-point dot
     const lastVal = values[values.length-1];
-    const lastX = (values.length-1)*step, lastY = padY + h - ((lastVal-min)/range)*h;
     const dot = document.createElementNS(ns, 'circle');
-    dot.setAttribute('cx', lastX.toFixed(1));
-    dot.setAttribute('cy', lastY.toFixed(1));
+    dot.setAttribute('cx', xFor(values.length-1).toFixed(1));
+    dot.setAttribute('cy', yFor(lastVal).toFixed(1));
     dot.setAttribute('r', '4');
     dot.setAttribute('fill', (lastVal < low || lastVal > high) ? 'var(--outage)' : 'var(--online)');
     svgEl.appendChild(dot);
@@ -806,8 +850,8 @@
       vEl.className = 'value ' + classifyPower(v, UNDERVOLTAGE, OVERVOLTAGE);
       fEl.className = 'value ' + classifyPower(f, FREQ_LOW, FREQ_HIGH);
 
-      drawTrace(document.getElementById('voltageTrace'), data.trend.map(r => r.voltage), UNDERVOLTAGE, OVERVOLTAGE);
-      drawTrace(document.getElementById('frequencyTrace'), data.trend.map(r => r.frequency), FREQ_LOW, FREQ_HIGH);
+      drawTrace(document.getElementById('voltageTrace'), data.trend.map(r => r.voltage), UNDERVOLTAGE, OVERVOLTAGE, 'V');
+      drawTrace(document.getElementById('frequencyTrace'), data.trend.map(r => r.frequency), FREQ_LOW, FREQ_HIGH, 'Hz');
 
       statusLine.textContent = "Updated " + new Date(data.latest.timestamp).toLocaleTimeString();
     } catch(err){
