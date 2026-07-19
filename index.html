@@ -107,7 +107,15 @@
     margin-bottom:24px;
   }
   @media(max-width:600px){ .power-stats{ grid-template-columns:1fr; } }
-  .trace-svg{ width:100%; height:96px; display:block; }
+  .trace-svg{ width:100%; height:84px; display:block; }
+
+  .trace-range{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    color:var(--text-dim);
+    margin-bottom:10px;
+  }
+  .trace-range b{ color:var(--amber); font-weight:600; }
 
   .section-label{
     font-family:'IBM Plex Mono', monospace;
@@ -390,12 +398,14 @@
 
     <div class="summary-block">
       <h3>Voltage — last 20 readings</h3>
-      <svg class="trace-svg" id="voltageTrace" viewBox="0 0 660 100" preserveAspectRatio="none"></svg>
+      <div class="trace-range">Normal range: <b>216.2 – 243.8 V</b> (UPERC SoP, &plusmn;6%)</div>
+      <svg class="trace-svg" id="voltageTrace" viewBox="0 0 640 90" preserveAspectRatio="none"></svg>
     </div>
 
     <div class="summary-block">
       <h3>Frequency — last 20 readings</h3>
-      <svg class="trace-svg" id="frequencyTrace" viewBox="0 0 660 100" preserveAspectRatio="none"></svg>
+      <div class="trace-range">Normal range: <b>48.5 – 51.5 Hz</b></div>
+      <svg class="trace-svg" id="frequencyTrace" viewBox="0 0 640 90" preserveAspectRatio="none"></svg>
     </div>
 
     <div id="powerStatusLine" style="font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--text-dim); text-align:center;">Loading&hellip;</div>
@@ -417,7 +427,7 @@
   // Power Quality tab — separate spreadsheet/deployment from the outage log above
   const WEBAPP_URL_POWER = "https://script.google.com/macros/s/AKfycbxLUff55eny4GBdNiOVFvbL3Kv0050wDpB5v3ucUF4N95_8xHfqNI7ADu7A5Zv9UCrENg/exec";
   const POWER_REFRESH_MS = 60 * 1000; // 60 seconds — much faster than the 6hr outage log refresh
-  const UNDERVOLTAGE = 207, OVERVOLTAGE = 253;
+  const UNDERVOLTAGE = 216.2, OVERVOLTAGE = 243.8; // UPERC SoP 15.3.1, Low Voltage: +6%/-6%
   const FREQ_LOW = 48.5, FREQ_HIGH = 51.5;
   // ────────────────────────────────────────────────────────────────────
 
@@ -756,24 +766,22 @@
     return (value < low || value > high) ? 'outage-color' : 'online-color';
   }
 
-  function drawTrace(svgEl, values, low, high, unit){
+  function drawTrace(svgEl, values, low, high){
     svgEl.innerHTML = '';
     if(!values.length) return;
     const dataMin = Math.min(...values), dataMax = Math.max(...values);
-    // Scale always includes the threshold band, not just observed data —
-    // otherwise small real fluctuations look artificially dramatic.
     const scaleMin = Math.min(dataMin, low), scaleMax = Math.max(dataMax, high);
     const pad = (scaleMax - scaleMin) * 0.12 || 1;
     const min = scaleMin - pad, max = scaleMax + pad;
     const range = (max - min) || 1;
 
-    const xStart = 46, xEnd = 620, w = xEnd - xStart;
-    const padY = 14, h = 100 - padY*2;
+    const xStart = 8, xEnd = 632, w = xEnd - xStart;
+    const padY = 8, h = 90 - padY*2;
     const ns = 'http://www.w3.org/2000/svg';
     const yFor = v => padY + h - ((v-min)/range)*h;
     const xFor = i => xStart + (values.length>1 ? i*(w/(values.length-1)) : 0);
 
-    // Threshold reference lines
+    // Threshold reference lines (no in-chart text — the range is shown above as HTML)
     [high, low].forEach(t => {
       const y = yFor(t);
       const line = document.createElementNS(ns,'line');
@@ -784,29 +792,6 @@
       line.setAttribute('stroke-dasharray','4 3');
       line.setAttribute('opacity','0.5');
       svgEl.appendChild(line);
-
-      const txt = document.createElementNS(ns,'text');
-      txt.setAttribute('x', xEnd + 4);
-      txt.setAttribute('y', (y+3).toFixed(1));
-      txt.setAttribute('font-size','9');
-      txt.setAttribute('font-family',"'IBM Plex Mono', monospace");
-      txt.setAttribute('fill','var(--amber)');
-      txt.textContent = t + (unit||'');
-      svgEl.appendChild(txt);
-    });
-
-    // Y-axis scale markers (top/bottom of visible range)
-    [max, min].forEach(v => {
-      const y = yFor(v);
-      const txt = document.createElementNS(ns,'text');
-      txt.setAttribute('x', xStart - 6);
-      txt.setAttribute('y', (y+3).toFixed(1));
-      txt.setAttribute('text-anchor','end');
-      txt.setAttribute('font-size','9');
-      txt.setAttribute('font-family',"'IBM Plex Mono', monospace");
-      txt.setAttribute('fill','var(--text-dim)');
-      txt.textContent = v.toFixed(0);
-      svgEl.appendChild(txt);
     });
 
     // Trace line
@@ -850,8 +835,8 @@
       vEl.className = 'value ' + classifyPower(v, UNDERVOLTAGE, OVERVOLTAGE);
       fEl.className = 'value ' + classifyPower(f, FREQ_LOW, FREQ_HIGH);
 
-      drawTrace(document.getElementById('voltageTrace'), data.trend.map(r => r.voltage), UNDERVOLTAGE, OVERVOLTAGE, 'V');
-      drawTrace(document.getElementById('frequencyTrace'), data.trend.map(r => r.frequency), FREQ_LOW, FREQ_HIGH, 'Hz');
+      drawTrace(document.getElementById('voltageTrace'), data.trend.map(r => r.voltage), UNDERVOLTAGE, OVERVOLTAGE);
+      drawTrace(document.getElementById('frequencyTrace'), data.trend.map(r => r.frequency), FREQ_LOW, FREQ_HIGH);
 
       statusLine.textContent = "Updated " + new Date(data.latest.timestamp).toLocaleTimeString();
     } catch(err){
