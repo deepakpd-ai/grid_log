@@ -408,6 +408,11 @@
       <svg class="trace-svg" id="frequencyTrace" viewBox="0 0 640 90" preserveAspectRatio="none"></svg>
     </div>
 
+    <div class="summary-block">
+      <h3>Recent events</h3>
+      <div id="powerEventsList"><div class="empty">Loading&hellip;</div></div>
+    </div>
+
     <div id="powerStatusLine" style="font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--text-dim); text-align:center;">Loading&hellip;</div>
   </div>
 
@@ -815,6 +820,30 @@
     svgEl.appendChild(dot);
   }
 
+  function renderPowerEvents(events){
+    const container = document.getElementById('powerEventsList');
+    if(!events || events.length === 0){
+      container.innerHTML = '<div class="empty">No events logged yet.</div>';
+      return;
+    }
+    container.innerHTML = events.map(ev => {
+      const isEnd = String(ev.event).indexOf('_END') > -1;
+      const type = String(ev.event).replace('_START','').replace('_END','');
+      const unit = type === 'FrequencyDeviation' ? 'Hz' : 'V';
+      const label = isEnd
+        ? `${type} ended — worst ${Number(ev.value).toFixed(1)}${unit}, lasted ${fmtDuration(Number(ev.value2))}`
+        : `${type} started — ${Number(ev.value).toFixed(1)}V, ${Number(ev.value2).toFixed(2)}Hz`;
+      const tagClass = isEnd ? 'end' : 'start';
+      const tagText = isEnd ? 'END' : 'START';
+      return `<div class="pending-row">
+        <div class="top-line">
+          <span><span class="tag ${tagClass}">${tagText}</span> ${escapeHtml(label)}</span>
+          <span style="color:var(--text-dim); font-size:11px; white-space:nowrap;">${new Date(ev.timestamp).toLocaleString()}</span>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
   async function loadPowerData(){
     const statusLine = document.getElementById('powerStatusLine');
     try {
@@ -837,6 +866,7 @@
 
       drawTrace(document.getElementById('voltageTrace'), data.trend.map(r => r.voltage), UNDERVOLTAGE, OVERVOLTAGE);
       drawTrace(document.getElementById('frequencyTrace'), data.trend.map(r => r.frequency), FREQ_LOW, FREQ_HIGH);
+      renderPowerEvents(data.events || []);
 
       statusLine.textContent = "Updated " + new Date(data.latest.timestamp).toLocaleTimeString();
     } catch(err){
