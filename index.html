@@ -810,14 +810,17 @@
     line.setAttribute('stroke-linecap', 'round');
     svgEl.appendChild(line);
 
-    // Last-point dot
-    const lastVal = values[values.length-1];
-    const dot = document.createElementNS(ns, 'circle');
-    dot.setAttribute('cx', xFor(values.length-1).toFixed(1));
-    dot.setAttribute('cy', yFor(lastVal).toFixed(1));
-    dot.setAttribute('r', '4');
-    dot.setAttribute('fill', (lastVal < low || lastVal > high) ? 'var(--outage)' : 'var(--online)');
-    svgEl.appendChild(dot);
+    // A dot at every reading, colored by whether that point was in range.
+    // The most recent reading gets a slightly larger dot to stand out.
+    values.forEach((v, i) => {
+      const isLast = i === values.length - 1;
+      const dot = document.createElementNS(ns, 'circle');
+      dot.setAttribute('cx', xFor(i).toFixed(1));
+      dot.setAttribute('cy', yFor(v).toFixed(1));
+      dot.setAttribute('r', isLast ? '4' : '2.5');
+      dot.setAttribute('fill', (v < low || v > high) ? 'var(--outage)' : 'var(--online)');
+      svgEl.appendChild(dot);
+    });
   }
 
   function renderPowerEvents(events){
