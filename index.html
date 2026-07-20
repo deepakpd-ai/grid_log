@@ -829,13 +829,15 @@
       container.innerHTML = '<div class="empty">No events logged yet.</div>';
       return;
     }
+    const displayName = { Undervoltage:'Undervoltage', Overvoltage:'Overvoltage', FrequencyLow:'Low frequency', FrequencyHigh:'High frequency' };
     container.innerHTML = events.map(ev => {
       const isEnd = String(ev.event).indexOf('_END') > -1;
       const type = String(ev.event).replace('_START','').replace('_END','');
-      const unit = type === 'FrequencyDeviation' ? 'Hz' : 'V';
+      const unit = type.indexOf('Frequency') > -1 ? 'Hz' : 'V';
+      const name = displayName[type] || type;
       const label = isEnd
-        ? `${type} ended — worst ${Number(ev.value).toFixed(1)}${unit}, lasted ${fmtDuration(Number(ev.value2))}`
-        : `${type} started — ${Number(ev.value).toFixed(1)}V, ${Number(ev.value2).toFixed(2)}Hz`;
+        ? `${name} ended — worst ${Number(ev.value).toFixed(unit === 'Hz' ? 2 : 1)}${unit}, lasted ${fmtDuration(Number(ev.value2))}`
+        : `${name} started — ${Number(ev.value).toFixed(1)}V, ${Number(ev.value2).toFixed(2)}Hz`;
       const tagClass = isEnd ? 'end' : 'start';
       const tagText = isEnd ? 'END' : 'START';
       return `<div class="pending-row">
