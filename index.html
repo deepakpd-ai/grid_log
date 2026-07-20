@@ -398,7 +398,7 @@
 
     <div class="summary-block">
       <h3>Voltage — last 20 readings</h3>
-      <div class="trace-range">Normal range: <b>216.2 – 243.8 V</b> (UPERC SoP, &plusmn;6%)</div>
+      <div class="trace-range">Logged range: <b>213.9 – 246.1 V</b> (&plusmn;7%, incl. sensor margin — SoP limit is &plusmn;6%)</div>
       <svg class="trace-svg" id="voltageTrace" viewBox="0 0 640 90" preserveAspectRatio="none"></svg>
     </div>
 
@@ -432,7 +432,7 @@
   // Power Quality tab — separate spreadsheet/deployment from the outage log above
   const WEBAPP_URL_POWER = "https://script.google.com/macros/s/AKfycbxLUff55eny4GBdNiOVFvbL3Kv0050wDpB5v3ucUF4N95_8xHfqNI7ADu7A5Zv9UCrENg/exec";
   const POWER_REFRESH_MS = 60 * 1000; // 60 seconds — much faster than the 6hr outage log refresh
-  const UNDERVOLTAGE = 216.2, OVERVOLTAGE = 243.8; // UPERC SoP 15.3.1, Low Voltage: +6%/-6%
+  const UNDERVOLTAGE = 213.9, OVERVOLTAGE = 246.1; // ±7% — includes sensor margin; UPERC SoP limit itself is ±6%
   const FREQ_LOW = 48.5, FREQ_HIGH = 51.5;
   // ────────────────────────────────────────────────────────────────────
 
@@ -793,9 +793,9 @@
       line.setAttribute('x1', xStart); line.setAttribute('x2', xEnd);
       line.setAttribute('y1', y.toFixed(1)); line.setAttribute('y2', y.toFixed(1));
       line.setAttribute('stroke', 'var(--amber)');
-      line.setAttribute('stroke-width','1');
-      line.setAttribute('stroke-dasharray','4 3');
-      line.setAttribute('opacity','0.5');
+      line.setAttribute('stroke-width','2');
+      line.setAttribute('stroke-dasharray','5 4');
+      line.setAttribute('opacity','0.85');
       svgEl.appendChild(line);
     });
 
