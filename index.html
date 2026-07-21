@@ -413,6 +413,11 @@
       <div id="powerEventsList"><div class="empty">Loading&hellip;</div></div>
     </div>
 
+    <div class="summary-block">
+      <h3>Previous day summary</h3>
+      <div id="powerDailySummary"><div class="empty">Loading&hellip;</div></div>
+    </div>
+
     <div id="powerStatusLine" style="font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--text-dim); text-align:center;">Loading&hellip;</div>
   </div>
 
@@ -849,6 +854,31 @@
     }).join('');
   }
 
+  function renderDailySummary(s){
+    const container = document.getElementById('powerDailySummary');
+    if(!s){
+      container.innerHTML = '<div class="empty">No summary yet.</div>';
+      return;
+    }
+    const dateLabel = new Date(s.date).toLocaleDateString(undefined, { weekday:'short', year:'numeric', month:'short', day:'numeric' });
+    const rows = [
+      ['Date', dateLabel],
+      ['Avg voltage', s.avgVoltage + ' V'],
+      ['Voltage range', s.minVoltage + ' \u2013 ' + s.maxVoltage + ' V'],
+      ['Frequency range', s.minFrequency + ' \u2013 ' + s.maxFrequency + ' Hz'],
+      ['Frequency stability', s.stability],
+      ['Events', s.eventCount],
+      ['Total event duration', s.totalDuration]
+    ];
+    container.innerHTML = rows.map(r => `
+      <div class="pending-row">
+        <div class="top-line">
+          <span style="color:var(--text-dim);">${escapeHtml(r[0])}</span>
+          <span>${escapeHtml(String(r[1]))}</span>
+        </div>
+      </div>`).join('');
+  }
+
   async function loadPowerData(){
     const statusLine = document.getElementById('powerStatusLine');
     try {
@@ -872,6 +902,7 @@
       drawTrace(document.getElementById('voltageTrace'), data.trend.map(r => r.voltage), UNDERVOLTAGE, OVERVOLTAGE);
       drawTrace(document.getElementById('frequencyTrace'), data.trend.map(r => r.frequency), FREQ_LOW, FREQ_HIGH);
       renderPowerEvents(data.events || []);
+      renderDailySummary(data.yesterdaySummary);
 
       statusLine.textContent = "Updated " + new Date(data.latest.timestamp).toLocaleTimeString();
     } catch(err){
